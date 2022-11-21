@@ -51,7 +51,11 @@ async fn main() -> Result<()> {
                     .select(&anchor_selector)
                     .filter_map(|node| node.value().attr("href"))
                     .filter_map(|link| Url::parse(link).ok())
-                    .filter(|link| link.host_str().map(|host| seed_host == host).is_some())
+                    .filter(|link| {
+                        link.host_str()
+                            .map(|host| seed_host == host)
+                            .unwrap_or(false)
+                    })
                     .map(|link| link.to_string())
                     .collect::<HashSet<String>>()
                     .difference(&uniq_links)
