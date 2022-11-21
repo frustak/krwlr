@@ -25,6 +25,8 @@ async fn main() -> Result<()> {
         .init();
     dotenv().ok();
     let seed = env::var("SEED").expect("SEED environment variable is missing!");
+    let host_url = Url::parse(&seed).expect("SEED is not a valid URL!");
+    let seed_host = host_url.host_str().expect("SEED is missing a host!");
     let mut que = VecDeque::from([seed.clone()]);
     let max_crawl = env::var("MAX_CRAWL")
         .expect("MAX_CRAWL environment variable is missing!")
@@ -44,7 +46,8 @@ async fn main() -> Result<()> {
         let new_links: HashSet<String> = Html::parse_document(resp.as_str())
             .select(&anchor_selector)
             .filter_map(|node| node.value().attr("href"))
-            .filter(|link| Url::parse(link).is_ok())
+            .filter_map(|link| Url::parse(link).ok())
+            .filter(|link| link.host_str().map(|host| seed_host == host).is_some())
             .map(|link| link.to_string())
             .collect::<HashSet<String>>()
             .difference(&uniq_links)
