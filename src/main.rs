@@ -9,6 +9,7 @@ use std::{
     path::Path,
 };
 use tracing::info;
+use url::Url;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,6 +35,7 @@ async fn main() -> Result<()> {
         let new_links: HashSet<String> = Document::from(resp.as_str())
             .find(Name("a"))
             .filter_map(|node| node.attr("href"))
+            .filter(|link| Url::parse(link).is_ok())
             .map(|link| link.to_string())
             .collect::<HashSet<String>>()
             .difference(&uniq_links)
