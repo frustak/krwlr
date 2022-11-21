@@ -27,35 +27,41 @@ async fn main() -> Result<()> {
     let seed = env::var("SEED").expect("SEED environment variable is missing!");
     let host_url = Url::parse(&seed).expect("SEED is not a valid URL!");
     let seed_host = host_url.host_str().expect("SEED is missing a host!");
-    let mut que = VecDeque::from([seed.clone()]);
     let max_crawl = env::var("MAX_CRAWL")
         .expect("MAX_CRAWL environment variable is missing!")
         .parse::<usize>()
         .expect("MAX_CRAWL environment variable is not a number!");
-    let mut crawled_count = 0;
+    let mut que = VecDeque::from([seed.clone()]);
     let mut uniq_links: HashSet<String> = HashSet::from([seed]);
+    let mut crawled_count = 0;
     let mut repo = open_repo()?;
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
     let anchor_selector = Selector::parse("a").unwrap();
+    let client = reqwest::Client::new();
     info!("Starting the crawl");
     while !que.is_empty() && crawled_count < max_crawl {
         let url = que.pop_front().unwrap();
         info!(url);
-        let resp = reqwest::get(url).await?.text().await?;
-        encoder.write_all(resp.as_bytes())?;
-        let new_links: HashSet<String> = Html::parse_document(resp.as_str())
-            .select(&anchor_selector)
-            .filter_map(|node| node.value().attr("href"))
-            .filter_map(|link| Url::parse(link).ok())
-            .filter(|link| link.host_str().map(|host| seed_host == host).is_some())
-            .map(|link| link.to_string())
-            .collect::<HashSet<String>>()
-            .difference(&uniq_links)
-            .cloned()
-            .collect();
-        uniq_links.extend(new_links.clone());
-        new_links.into_iter().for_each(|link| que.push_back(link));
-        crawled_count += 1;
+        let resp = client.get(url).send().await.ok();
+        if let Some(resp) = resp {
+            let resp = resp.text().await.ok();
+            if let Some(resp) = resp {
+                encoder.write_all(resp.as_bytes())?;
+                let new_links: HashSet<String> = Html::parse_document(resp.as_str())
+                    .select(&anchor_selector)
+                    .filter_map(|node| node.value().attr("href"))
+                    .filter_map(|link| Url::parse(link).ok())
+                    .filter(|link| link.host_str().map(|host| seed_host == host).is_some())
+                    .map(|link| link.to_string())
+                    .collect::<HashSet<String>>()
+                    .difference(&uniq_links)
+                    .cloned()
+                    .collect();
+                uniq_links.extend(new_links.clone());
+                new_links.into_iter().for_each(|link| que.push_back(link));
+                crawled_count += 1;
+            }
+        }
     }
     let compressed = encoder.finish()?;
     repo.write_all(&compressed)?;
