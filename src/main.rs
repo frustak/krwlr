@@ -66,11 +66,12 @@ async fn main() -> Result<()> {
 fn open_repo() -> Result<File> {
     let data_dir = Path::new("./data");
     fs::create_dir_all(data_dir)?;
-    let repo_path = data_dir.join("repo.zlib");
+    let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+    let file_name = format!("repo-{}.zlib", now);
+    let repo_path = data_dir.join(file_name);
     let repo = OpenOptions::new()
         .write(true)
-        .create(true)
-        .truncate(true)
+        .create_new(true)
         .open(repo_path)?;
     Ok(repo)
 }
