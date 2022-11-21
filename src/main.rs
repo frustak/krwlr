@@ -2,7 +2,7 @@ use anyhow::Result;
 use dotenvy::dotenv;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use select::{document::Document, predicate::Name};
+use scraper::{Html, Selector};
 use std::{
     collections::{HashSet, VecDeque},
     env,
@@ -34,15 +34,16 @@ async fn main() -> Result<()> {
     let mut uniq_links: HashSet<String> = HashSet::from([seed]);
     let mut repo = open_repo()?;
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    let anchor_selector = Selector::parse("a").unwrap();
     info!("Starting the crawl");
     while !que.is_empty() && crawled_count < max_crawl {
         let url = que.pop_front().unwrap();
         info!(url);
         let resp = reqwest::get(url).await?.text().await?;
         encoder.write_all(resp.as_bytes())?;
-        let new_links: HashSet<String> = Document::from(resp.as_str())
-            .find(Name("a"))
-            .filter_map(|node| node.attr("href"))
+        let new_links: HashSet<String> = Html::parse_document(resp.as_str())
+            .select(&anchor_selector)
+            .filter_map(|node| node.value().attr("href"))
             .filter(|link| Url::parse(link).is_ok())
             .map(|link| link.to_string())
             .collect::<HashSet<String>>()
