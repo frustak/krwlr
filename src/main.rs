@@ -44,6 +44,15 @@ async fn main() -> Result<()> {
         info!(url);
         let resp = client.get(url).send().await.ok();
         if let Some(resp) = resp {
+            let is_html = resp
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .map(|content_type| content_type.contains("text/html"))
+                .unwrap_or(false);
+            if !is_html {
+                continue;
+            }
             let resp = resp.text().await.ok();
             if let Some(resp) = resp {
                 encoder.write_all(resp.as_bytes())?;
