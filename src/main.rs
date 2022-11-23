@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     let mut que = VecDeque::from([seed.clone()]);
     let mut uniq_links: HashSet<String> = HashSet::from([seed]);
     let mut crawled_count = 0;
-    let (mut compress_repo, mut repo) = open_repo()?;
+    let mut repo = Repository::open()?;
     let anchor_selector = Selector::parse("a").unwrap();
     let client = reqwest::Client::new();
     info!("Starting the crawl");
@@ -57,8 +57,8 @@ async fn main() -> Result<()> {
                 let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
                 encoder.write_all(resp.as_bytes())?;
                 let compressed = encoder.finish()?;
-                compress_repo.write_all(&compressed)?;
-                repo.write_all(resp.as_bytes())?;
+                repo.compressed.write_all(&compressed)?;
+                repo.uncompressed.write_all(resp.as_bytes())?;
                 let new_links: HashSet<String> = Html::parse_document(resp.as_str())
                     .select(&anchor_selector)
                     .filter_map(|node| node.value().attr("href"))
@@ -79,26 +79,35 @@ async fn main() -> Result<()> {
             }
         }
     }
-
     info!("Crawl complete");
     Ok(())
 }
 
-fn open_repo() -> Result<(File, File)> {
-    let data_dir = Path::new("./data");
-    fs::create_dir_all(data_dir)?;
-    let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-    let compress_file_name = format!("repo-{}.zlib", now);
-    let file_name = format!("repo-{}.txt", now);
-    let compress_file_path = data_dir.join(compress_file_name);
-    let repo_path = data_dir.join(file_name);
-    let compress_repo = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(compress_file_path)?;
-    let repo = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(repo_path)?;
-    Ok((compress_repo, repo))
+struct Repository {
+    compressed: File,
+    uncompressed: File,
+}
+
+impl Repository {
+    fn open() -> Result<Self> {
+        let data_dir = Path::new("./data");
+        fs::create_dir_all(data_dir)?;
+        let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+        let compressed_name = format!("repo-{}.zlib", now);
+        let compressed_path = data_dir.join(compressed_name);
+        let compressed = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(compressed_path)?;
+        let uncompressed_name = format!("repo-{}.txt", now);
+        let uncompressed_path = data_dir.join(uncompressed_name);
+        let uncompressed = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(uncompressed_path)?;
+        Ok(Self {
+            compressed,
+            uncompressed,
+        })
+    }
 }
