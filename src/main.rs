@@ -34,8 +34,7 @@ async fn main() -> Result<()> {
     let mut que = VecDeque::from([seed.clone()]);
     let mut uniq_links: HashSet<String> = HashSet::from([seed]);
     let mut crawled_count = 0;
-    let mut repo = open_repo()?;
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
+    let (mut compress_repo, mut repo) = open_repo()?;
     let anchor_selector = Selector::parse("a").unwrap();
     let client = reqwest::Client::new();
     info!("Starting the crawl");
@@ -55,7 +54,11 @@ async fn main() -> Result<()> {
             }
             let resp = resp.text().await.ok();
             if let Some(resp) = resp {
+                let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
                 encoder.write_all(resp.as_bytes())?;
+                let compressed = encoder.finish()?;
+                compress_repo.write_all(&compressed)?;
+                repo.write_all(resp.as_bytes())?;
                 let new_links: HashSet<String> = Html::parse_document(resp.as_str())
                     .select(&anchor_selector)
                     .filter_map(|node| node.value().attr("href"))
@@ -76,21 +79,26 @@ async fn main() -> Result<()> {
             }
         }
     }
-    let compressed = encoder.finish()?;
-    repo.write_all(&compressed)?;
+
     info!("Crawl complete");
     Ok(())
 }
 
-fn open_repo() -> Result<File> {
+fn open_repo() -> Result<(File, File)> {
     let data_dir = Path::new("./data");
     fs::create_dir_all(data_dir)?;
     let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-    let file_name = format!("repo-{}.zlib", now);
+    let compress_file_name = format!("repo-{}.zlib", now);
+    let file_name = format!("repo-{}.txt", now);
+    let compress_file_path = data_dir.join(compress_file_name);
     let repo_path = data_dir.join(file_name);
+    let compress_repo = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(compress_file_path)?;
     let repo = OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(repo_path)?;
-    Ok(repo)
+    Ok((compress_repo, repo))
 }
