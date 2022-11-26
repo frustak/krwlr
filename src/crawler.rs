@@ -23,7 +23,7 @@ pub struct Crawler {
 impl Crawler {
     pub fn new(seed: &str, max_crawl: usize) -> Self {
         Self {
-            repo: Repository::open().unwrap(),
+            repo: Repository::open(),
             que: VecDeque::from([seed.to_string()]),
             uniq_urls: HashSet::from([seed.to_string()]),
             crawled_count: 0,
@@ -46,6 +46,7 @@ impl Crawler {
         urls.iter().cloned().for_each(|url| self.que.push_back(url));
     }
 
+    // TODO: refactor to chunks
     async fn crawl(&mut self) -> Result<()> {
         let url = self
             .next_url()
@@ -90,6 +91,7 @@ impl Crawler {
         self.metrics.compressed_bytes = self.repo.compressed.metadata().unwrap().len() as usize;
         self.metrics.uncompressed_bytes = self.repo.uncompressed.metadata().unwrap().len() as usize;
         self.metrics.process_time = start.elapsed().as_secs_f64();
+        self.metrics.que_size_at_end = self.que.len();
     }
 
     pub fn show_metrics(&self) {
@@ -126,7 +128,7 @@ fn parse_urls(document: &str, base_url: &str) -> Vec<Url> {
 }
 
 fn to_absolute_url(url: &str, base_url: &str) -> Option<Url> {
-    let base = Url::parse(base_url).unwrap();
+    let base = Url::parse(base_url).ok()?;
     let absolute_url = base.join(url);
     absolute_url.ok()
 }

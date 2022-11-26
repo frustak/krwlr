@@ -13,26 +13,28 @@ pub struct Repository {
 }
 
 impl Repository {
-    pub fn open() -> Result<Self> {
+    pub fn open() -> Self {
         let data_dir = Path::new("./data");
-        fs::create_dir_all(data_dir)?;
+        fs::create_dir_all(data_dir).unwrap();
         let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
         let compressed_name = format!("repo-{}.zlib", now);
         let compressed_path = data_dir.join(compressed_name);
         let compressed = OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(compressed_path)?;
+            .open(compressed_path)
+            .unwrap();
         let uncompressed_name = format!("repo-{}.txt", now);
         let uncompressed_path = data_dir.join(uncompressed_name);
         let uncompressed = OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(uncompressed_path)?;
-        Ok(Self {
+            .open(uncompressed_path)
+            .unwrap();
+        Self {
             compressed,
             uncompressed,
-        })
+        }
     }
 
     pub fn store(&mut self, content: &str) {
