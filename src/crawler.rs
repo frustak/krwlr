@@ -16,7 +16,7 @@ pub struct Crawler {
     crawled_count: usize,
     max_crawl: usize,
     request: reqwest::Client,
-    seed_host: String,
+    seed_domain: String,
     metrics: Metrics,
 }
 
@@ -29,7 +29,7 @@ impl Crawler {
             crawled_count: 0,
             max_crawl,
             request: reqwest::Client::new(),
-            seed_host: get_host(seed),
+            seed_domain: get_domain(seed),
             metrics: Metrics::new(),
         }
     }
@@ -65,14 +65,14 @@ impl Crawler {
         let all_urls = parse_urls(&body);
         let all_urls_count = all_urls.len();
         self.metrics.total_urls += all_urls_count;
-        let same_host_urls: HashSet<String> = all_urls
+        let same_domain_urls: HashSet<String> = all_urls
             .into_iter()
-            .filter(|url| is_same_host(url, &self.seed_host))
+            .filter(|url| is_same_domain(url, &self.seed_domain))
             .map(|url| url.to_string())
             .collect();
-        self.metrics.other_hosts += all_urls_count - same_host_urls.len();
-        self.metrics.same_hosts += same_host_urls.len();
-        let new_urls: HashSet<String> = same_host_urls
+        self.metrics.other_domains += all_urls_count - same_domain_urls.len();
+        self.metrics.same_domains += same_domain_urls.len();
+        let new_urls: HashSet<String> = same_domain_urls
             .difference(&self.uniq_urls)
             .cloned()
             .collect();
@@ -106,9 +106,9 @@ fn is_html(response: &Response) -> bool {
         .unwrap_or(false)
 }
 
-fn is_same_host(url: &Url, host: &str) -> bool {
-    url.host_str()
-        .map(|url_host| url_host == host)
+fn is_same_domain(url: &Url, domain: &str) -> bool {
+    url.domain()
+        .map(|url_domain| url_domain == domain)
         .unwrap_or(false)
 }
 
@@ -121,10 +121,10 @@ fn parse_urls(document: &str) -> Vec<Url> {
         .collect()
 }
 
-fn get_host(url_str: &str) -> String {
+fn get_domain(url_str: &str) -> String {
     Url::parse(url_str)
         .expect("URL is invalid!")
-        .host_str()
-        .expect("URL is missing a host!")
+        .domain()
+        .expect("URL is missing a domain!")
         .to_string()
 }
