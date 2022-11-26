@@ -52,7 +52,7 @@ impl Crawler {
             .ok_or_else(|| anyhow!("Crawler queue is empty!"))?;
         info!(url);
         let start = Instant::now();
-        let resp = self.request.get(url).send().await?;
+        let resp = self.request.get(&url).send().await?;
         self.metrics.download_time += start.elapsed().as_secs_f64();
         self.metrics.fetch_count += 1;
         self.metrics.downloaded_bytes += resp.content_length().unwrap_or(0) as usize;
@@ -62,7 +62,7 @@ impl Crawler {
         self.metrics.total_html_files += 1;
         let body = resp.text().await?;
         self.repo.store(&body);
-        let all_urls = parse_urls(&body);
+        let all_urls = parse_urls(&body, &url);
         let all_urls_count = all_urls.len();
         self.metrics.total_urls += all_urls_count;
         let same_domain_urls: HashSet<String> = all_urls
@@ -112,13 +112,23 @@ fn is_same_domain(url: &Url, domain: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn parse_urls(document: &str) -> Vec<Url> {
+fn parse_urls(document: &str, base_url: &str) -> Vec<Url> {
     let anchor_selector = Selector::parse("a").unwrap();
     Html::parse_document(document)
         .select(&anchor_selector)
         .filter_map(|node| node.value().attr("href"))
-        .filter_map(|url| Url::parse(url).ok())
+        .filter_map(|url| match Url::parse(url) {
+            Ok(url) => Some(url),
+            Err(url::ParseError::RelativeUrlWithoutBase) => to_absolute_url(url, base_url),
+            _ => None,
+        })
         .collect()
+}
+
+fn to_absolute_url(url: &str, base_url: &str) -> Option<Url> {
+    let base = Url::parse(base_url).unwrap();
+    let absolute_url = base.join(url);
+    absolute_url.ok()
 }
 
 fn get_domain(url_str: &str) -> String {
