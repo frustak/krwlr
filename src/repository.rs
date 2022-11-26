@@ -1,4 +1,3 @@
-use anyhow::Result;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::{

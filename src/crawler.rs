@@ -114,6 +114,7 @@ fn is_same_domain(url: &Url, domain: &str) -> bool {
         .unwrap_or(false)
 }
 
+// TODO: refactor to chunks
 fn parse_urls(document: &str, base_url: &str) -> Vec<Url> {
     let anchor_selector = Selector::parse("a").unwrap();
     Html::parse_document(document)

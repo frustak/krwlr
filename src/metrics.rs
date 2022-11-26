@@ -10,6 +10,7 @@ pub struct Metrics {
     pub fetch_count: usize,
     pub process_time: f64,
     pub download_time: f64,
+    pub que_size_at_end: usize,
 }
 
 impl Metrics {
@@ -25,6 +26,7 @@ impl Metrics {
             fetch_count: 0,
             process_time: 0.0,
             download_time: 0.0,
+            que_size_at_end: 0,
         }
     }
 }
