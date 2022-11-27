@@ -6,6 +6,8 @@ use std::{
     path::Path,
 };
 
+const REPOSITORY_DIR: &str = "./data";
+
 pub struct Repository {
     pub compressed: File,
     pub uncompressed: File,
@@ -13,15 +15,10 @@ pub struct Repository {
 
 impl Repository {
     pub fn new() -> Self {
-        let dir = Path::new("./data");
+        let dir = Path::new(REPOSITORY_DIR);
         fs::create_dir_all(dir).unwrap();
-        let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-        let compressed_name = format!("repo-{}.zlib", now);
-        let compressed_path = dir.join(compressed_name);
-        let compressed = create_file(&compressed_path);
-        let uncompressed_name = format!("repo-{}.txt", now);
-        let uncompressed_path = dir.join(uncompressed_name);
-        let uncompressed = create_file(&uncompressed_path);
+        let compressed = create_file("zlib");
+        let uncompressed = create_file("txt");
         Self {
             compressed,
             uncompressed,
@@ -35,7 +32,11 @@ impl Repository {
     }
 }
 
-fn create_file(path: &Path) -> File {
+fn create_file(extension: &str) -> File {
+    let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+    let dir = Path::new(REPOSITORY_DIR);
+    let name = format!("repo-{}.{}", now, extension);
+    let path = dir.join(name);
     OpenOptions::new()
         .write(true)
         .create_new(true)
