@@ -1,5 +1,5 @@
 use dotenvy::dotenv;
-use krawler::Crawler;
+use krwlr::Crawler;
 use std::env;
 use tracing::info;
 
