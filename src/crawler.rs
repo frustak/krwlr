@@ -1,5 +1,5 @@
 use crate::{metrics::Metrics, repository::Repository};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Ok, Result};
 use reqwest::Response;
 use scraper::{Html, Selector};
 use std::{
@@ -9,11 +9,12 @@ use std::{
 use tracing::info;
 use url::Url;
 
+// TODO: Use builder pattern to create a crawler
 pub struct Crawler {
     repo: Repository,
     que: VecDeque<String>,
-    uniq_urls: HashSet<String>,
-    crawled_count: usize,
+    uniq_urls: HashSet<String>, // TODO: change to checked urls
+    crawled_count: usize,       // TODO: remove this, should be calculated from checked urls
     max_crawl: usize,
     request: reqwest::Client,
     seed_domain: String,
@@ -34,16 +35,23 @@ impl Crawler {
         }
     }
 
+    pub async fn ignite(&mut self) {
+        let start = Instant::now();
+        while self.should_crawl() {
+            self.crawl().await.ok();
+        }
+        self.metrics.compressed_bytes = self.repo.compressed.metadata().unwrap().len() as usize;
+        self.metrics.uncompressed_bytes = self.repo.uncompressed.metadata().unwrap().len() as usize;
+        self.metrics.process_time = start.elapsed().as_secs_f64();
+        self.metrics.que_size_at_end = self.que.len();
+    }
+
+    pub fn show_metrics(&self) {
+        info!("{:#?}", self.metrics);
+    }
+
     fn should_crawl(&self) -> bool {
         !self.que.is_empty() && self.crawled_count < self.max_crawl
-    }
-
-    fn next_url(&mut self) -> Option<String> {
-        self.que.pop_front()
-    }
-
-    fn add_new_urls(&mut self, urls: HashSet<String>) {
-        urls.iter().cloned().for_each(|url| self.que.push_back(url));
     }
 
     // TODO: refactor to chunks
@@ -83,61 +91,57 @@ impl Crawler {
         Ok(())
     }
 
-    pub async fn ignite(&mut self) {
-        let start = Instant::now();
-        while self.should_crawl() {
-            self.crawl().await.ok();
-        }
-        self.metrics.compressed_bytes = self.repo.compressed.metadata().unwrap().len() as usize;
-        self.metrics.uncompressed_bytes = self.repo.uncompressed.metadata().unwrap().len() as usize;
-        self.metrics.process_time = start.elapsed().as_secs_f64();
-        self.metrics.que_size_at_end = self.que.len();
+    fn next_url(&mut self) -> Option<String> {
+        self.que.pop_front()
     }
 
-    pub fn show_metrics(&self) {
-        info!("{:#?}", self.metrics);
+    fn add_new_urls(&mut self, urls: HashSet<String>) {
+        urls.iter().cloned().for_each(|url| self.que.push_back(url));
     }
-}
-
-fn is_html(response: &Response) -> bool {
-    response
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .map(|content_type| content_type.contains("text/html"))
-        .unwrap_or(false)
-}
-
-fn is_same_domain(url: &Url, domain: &str) -> bool {
-    url.domain()
-        .map(|url_domain| url_domain == domain)
-        .unwrap_or(false)
-}
-
-// TODO: refactor to chunks
-fn parse_urls(document: &str, base_url: &str) -> Vec<Url> {
-    let anchor_selector = Selector::parse("a").unwrap();
-    Html::parse_document(document)
-        .select(&anchor_selector)
-        .filter_map(|node| node.value().attr("href"))
-        .filter_map(|url| match Url::parse(url) {
-            Ok(url) => Some(url),
-            Err(url::ParseError::RelativeUrlWithoutBase) => to_absolute_url(url, base_url),
-            _ => None,
-        })
-        .collect()
-}
-
-fn to_absolute_url(url: &str, base_url: &str) -> Option<Url> {
-    let base = Url::parse(base_url).ok()?;
-    let absolute_url = base.join(url);
-    absolute_url.ok()
 }
 
 fn get_domain(url_str: &str) -> String {
     Url::parse(url_str)
         .expect("URL is invalid!")
         .domain()
-        .expect("URL is missing a domain!")
+        .expect("URL is missing domain!")
         .to_string()
+}
+
+fn is_html(response: &Response) -> bool {
+    response
+        .headers()
+        .get("content-type")
+        .and_then(|content_type| content_type.to_str().ok())
+        .map(|content_type| content_type.contains("text/html"))
+        .unwrap_or(false)
+}
+
+fn parse_urls(document: &str, base_url: &str) -> Vec<Url> {
+    let anchor_selector = Selector::parse("a").unwrap();
+    Html::parse_document(document)
+        .select(&anchor_selector)
+        .filter_map(|node| node.value().attr("href"))
+        .filter_map(|url| get_absolute_url(url, base_url))
+        .collect()
+}
+
+fn get_absolute_url(url: &str, base_url: &str) -> Option<Url> {
+    match Url::parse(url) {
+        std::result::Result::Ok(url) => Some(url),
+        Err(url::ParseError::RelativeUrlWithoutBase) => to_absolute_url(url, base_url).ok(),
+        _ => None,
+    }
+}
+
+fn to_absolute_url(url: &str, base: &str) -> Result<Url> {
+    let base_url = Url::parse(base)?;
+    let absolute_url = base_url.join(url)?;
+    Ok(absolute_url)
+}
+
+fn is_same_domain(url: &Url, domain: &str) -> bool {
+    url.domain()
+        .map(|url_domain| url_domain == domain)
+        .unwrap_or(false)
 }

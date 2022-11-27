@@ -1,8 +1,8 @@
 #[derive(Debug)]
 pub struct Metrics {
     pub total_urls: usize,
-    pub other_domains: usize,
     pub same_domains: usize,
+    pub other_domains: usize,
     pub total_html_files: usize,
     pub downloaded_bytes: usize,
     pub compressed_bytes: usize,
@@ -17,8 +17,8 @@ impl Metrics {
     pub fn new() -> Self {
         Self {
             total_urls: 1,
-            total_html_files: 0,
             same_domains: 1,
+            total_html_files: 0,
             downloaded_bytes: 0,
             compressed_bytes: 0,
             uncompressed_bytes: 0,
