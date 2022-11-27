@@ -23,7 +23,7 @@ pub struct Crawler {
 impl Crawler {
     pub fn new(seed: &str, max_crawl: usize) -> Self {
         Self {
-            repo: Repository::open(),
+            repo: Repository::new(),
             que: VecDeque::from([seed.to_string()]),
             uniq_urls: HashSet::from([seed.to_string()]),
             crawled_count: 0,
