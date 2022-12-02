@@ -47,6 +47,5 @@ fn create_file(extension: &str) -> File {
 fn compress(content: &str) -> Vec<u8> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
     encoder.write_all(content.as_bytes()).unwrap();
-    let compressed = encoder.finish().unwrap();
-    compressed
+    encoder.finish().unwrap()
 }
