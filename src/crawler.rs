@@ -1,5 +1,5 @@
 use crate::{metrics::Metrics, repository::Repository};
-use anyhow::{anyhow, bail, Ok, Result};
+use anyhow::{bail, Context, Ok, Result};
 use reqwest::Response;
 use scraper::{Html, Selector};
 use std::{
@@ -54,49 +54,73 @@ impl Crawler {
         !self.que.is_empty() && self.crawled_count < self.max_crawl
     }
 
-    // TODO: refactor to chunks
     async fn crawl(&mut self) -> Result<()> {
-        let url = self
-            .next_url()
-            .ok_or_else(|| anyhow!("Crawler queue is empty!"))?;
+        let url = self.next_url()?;
         info!(url);
-        let start = Instant::now();
-        let resp = self.request.get(&url).send().await?;
-        self.metrics.download_time += start.elapsed().as_secs_f64();
-        self.metrics.fetch_count += 1;
-        self.metrics.downloaded_bytes += resp.content_length().unwrap_or(0) as usize;
-        if !is_html(&resp) {
-            bail!("Response is not HTML");
-        }
-        self.metrics.total_html_files += 1;
-        let body = resp.text().await?;
+        let body = self.fetch_next(&url).await?;
         self.repo.store(&body);
         let all_urls = parse_urls(&body, &url);
         let all_urls_count = all_urls.len();
         self.metrics.total_urls += all_urls_count;
+        let same_domain_urls = self.same_domain_urls(all_urls);
+        self.metrics.other_domains += all_urls_count - same_domain_urls.len();
+        self.metrics.same_domains += same_domain_urls.len();
+        let new_urls = self.new_urls(same_domain_urls);
+        self.uniq_urls.extend(new_urls.clone());
+        self.push_new_urls(new_urls);
+        self.crawled_count += 1;
+        Ok(())
+    }
+
+    fn new_urls(&mut self, urls: HashSet<String>) -> HashSet<String> {
+        let new_urls: HashSet<String> = urls.difference(&self.uniq_urls).cloned().collect();
+        new_urls
+    }
+
+    fn same_domain_urls(&mut self, all_urls: Vec<Url>) -> HashSet<String> {
         let same_domain_urls: HashSet<String> = all_urls
             .into_iter()
             .filter(|url| is_same_domain(url, &self.seed_domain))
             .map(|url| url.to_string())
             .collect();
-        self.metrics.other_domains += all_urls_count - same_domain_urls.len();
-        self.metrics.same_domains += same_domain_urls.len();
-        let new_urls: HashSet<String> = same_domain_urls
-            .difference(&self.uniq_urls)
-            .cloned()
-            .collect();
-        self.uniq_urls.extend(new_urls.clone());
-        self.add_new_urls(new_urls);
-        self.crawled_count += 1;
-        Ok(())
+        same_domain_urls
     }
 
-    fn next_url(&mut self) -> Option<String> {
-        self.que.pop_front()
+    async fn fetch_next(&mut self, url: &str) -> Result<String> {
+        let timer = Timer::new();
+        let resp = self.request.get(url).send().await?;
+        self.metrics.download_time += timer.elapsed();
+        self.metrics.fetch_count += 1;
+        if !is_html(&resp) {
+            bail!("Response is not HTML");
+        }
+        self.metrics.total_html_files += 1;
+        let body = resp.text().await?;
+        Ok(body)
     }
 
-    fn add_new_urls(&mut self, urls: HashSet<String>) {
+    fn next_url(&mut self) -> Result<String> {
+        self.que.pop_front().context("No more urls to crawl")
+    }
+
+    fn push_new_urls(&mut self, urls: HashSet<String>) {
         urls.iter().cloned().for_each(|url| self.que.push_back(url));
+    }
+}
+
+struct Timer {
+    instant: Instant,
+}
+
+impl Timer {
+    fn new() -> Self {
+        Self {
+            instant: Instant::now(),
+        }
+    }
+
+    fn elapsed(&self) -> f64 {
+        self.instant.elapsed().as_secs_f64()
     }
 }
 
