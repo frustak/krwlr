@@ -13,8 +13,8 @@ use url::Url;
 pub struct Crawler {
     repo: Repository,
     que: VecDeque<String>,
-    uniq_urls: HashSet<String>, // TODO: change to checked urls
-    crawled_count: usize,       // TODO: remove this, should be calculated from checked urls
+    uniq_urls: HashSet<String>,
+    crawled_count: usize,
     max_crawl: usize,
     request: reqwest::Client,
     seed_domain: String,
