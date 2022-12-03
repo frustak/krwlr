@@ -9,7 +9,6 @@ use std::{
 use tracing::info;
 use url::Url;
 
-// TODO: Use builder pattern to create a crawler
 pub struct Crawler {
     repo: Repository,
     que: VecDeque<String>,
