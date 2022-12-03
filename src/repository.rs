@@ -35,7 +35,7 @@ impl Repository {
 fn create_file(extension: &str) -> File {
     let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
     let dir = Path::new(REPOSITORY_DIR);
-    let name = format!("repo-{}.{}", now, extension);
+    let name = format!("repo-{now}.{extension}");
     let path = dir.join(name);
     OpenOptions::new()
         .write(true)
