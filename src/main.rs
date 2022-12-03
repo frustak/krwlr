@@ -27,7 +27,7 @@ fn setup_logger() {
 }
 
 fn get_env_vars() -> (String, usize) {
-    dotenv().unwrap();
+    dotenv().expect("Failed to load .env file");
     let seed = env::var("SEED").expect("SEED environment variable is missing!");
     let max_crawl = env::var("MAX_CRAWL")
         .expect("MAX_CRAWL environment variable is missing!")
