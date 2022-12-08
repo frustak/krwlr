@@ -10,7 +10,7 @@ async fn main() {
     info!("seed: {}, max crawl: {}", seed, max_crawl);
     let mut crawler = Crawler::new(&seed, max_crawl);
     info!("Starting the crawl");
-    crawler.ignite().await;
+    crawler.start().await;
     info!("Crawl complete");
     crawler.show_metrics();
 }

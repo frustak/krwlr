@@ -35,7 +35,7 @@ impl Crawler {
         }
     }
 
-    pub async fn ignite(&mut self) {
+    pub async fn start(&mut self) {
         let start = Instant::now();
         while self.should_crawl() {
             let crawl_result = self.crawl().await;
