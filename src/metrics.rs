@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug)]
 pub struct Metrics {
     pub total_urls: usize,
@@ -25,6 +27,19 @@ impl Metrics {
             process_time: 0.0,
             download_time: 0.0,
             que_size_at_end: 0,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ErrorMetrics {
+    pub errors: HashMap<String, usize>,
+}
+
+impl ErrorMetrics {
+    pub fn new() -> Self {
+        Self {
+            errors: HashMap::new(),
         }
     }
 }

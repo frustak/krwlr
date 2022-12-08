@@ -1,4 +1,8 @@
-use crate::{metrics::Metrics, repository::Repository};
+use crate::{
+    metrics::{ErrorMetrics, Metrics},
+    repository::Repository,
+    timer::Timer,
+};
 use anyhow::{bail, Context, Ok, Result};
 use reqwest::Response;
 use scraper::{Html, Selector};
@@ -18,6 +22,7 @@ pub struct Crawler {
     request: reqwest::Client,
     seed_domain: String,
     metrics: Metrics,
+    error_metrics: ErrorMetrics,
 }
 
 impl Crawler {
@@ -31,13 +36,19 @@ impl Crawler {
             request: reqwest::Client::new(),
             seed_domain: get_domain(seed),
             metrics: Metrics::new(),
+            error_metrics: ErrorMetrics::new(),
         }
     }
 
     pub async fn ignite(&mut self) {
         let start = Instant::now();
         while self.should_crawl() {
-            self.crawl().await.ok();
+            let crawl_result = self.crawl().await;
+            if let Err(error) = crawl_result {
+                let error_string = error.to_string();
+                let error_count = self.error_metrics.errors.entry(error_string).or_insert(0);
+                *error_count += 1;
+            }
         }
         self.metrics.compressed_bytes = self.repo.compressed.metadata().unwrap().len() as usize;
         self.metrics.uncompressed_bytes = self.repo.uncompressed.metadata().unwrap().len() as usize;
@@ -47,6 +58,7 @@ impl Crawler {
 
     pub fn show_metrics(&self) {
         info!("{:#?}", self.metrics);
+        info!("{:#?}", self.error_metrics);
     }
 
     fn should_crawl(&self) -> bool {
@@ -104,22 +116,6 @@ impl Crawler {
 
     fn push_new_urls(&mut self, urls: HashSet<String>) {
         urls.iter().cloned().for_each(|url| self.que.push_back(url));
-    }
-}
-
-struct Timer {
-    instant: Instant,
-}
-
-impl Timer {
-    fn new() -> Self {
-        Self {
-            instant: Instant::now(),
-        }
-    }
-
-    fn elapsed(&self) -> f64 {
-        self.instant.elapsed().as_secs_f64()
     }
 }
 
