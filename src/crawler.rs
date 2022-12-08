@@ -4,6 +4,7 @@ use crate::{
     timer::Timer,
 };
 use anyhow::{bail, Context, Ok, Result};
+use rayon::prelude::*;
 use reqwest::Response;
 use scraper::{Html, Selector};
 use std::{
@@ -90,7 +91,7 @@ impl Crawler {
 
     fn same_domain_urls(&mut self, all_urls: Vec<Url>) -> HashSet<String> {
         let same_domain_urls: HashSet<String> = all_urls
-            .into_iter()
+            .into_par_iter()
             .filter(|url| is_same_domain(url, &self.seed_domain))
             .map(|url| url.to_string())
             .collect();
