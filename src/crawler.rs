@@ -1,8 +1,4 @@
-use crate::{
-    metrics::{ErrorMetrics, Metrics},
-    repository::Repository,
-    timer::Timer,
-};
+use crate::{metrics::Metrics, repository::Repository, timer::Timer};
 use anyhow::{bail, Context, Ok, Result};
 use rayon::prelude::*;
 use reqwest::Response;
@@ -23,7 +19,6 @@ pub struct Crawler {
     request: reqwest::Client,
     seed_domain: String,
     metrics: Metrics,
-    error_metrics: ErrorMetrics,
 }
 
 impl Crawler {
@@ -37,7 +32,6 @@ impl Crawler {
             request: reqwest::Client::new(),
             seed_domain: get_domain(seed),
             metrics: Metrics::new(),
-            error_metrics: ErrorMetrics::new(),
         }
     }
 
@@ -47,19 +41,19 @@ impl Crawler {
             let crawl_result = self.crawl().await;
             if let Err(error) = crawl_result {
                 let error_string = error.to_string();
-                let error_count = self.error_metrics.errors.entry(error_string).or_insert(0);
+                let error_count = self.metrics.error.errors.entry(error_string).or_insert(0);
                 *error_count += 1;
             }
         }
-        self.metrics.compressed_bytes = self.repo.compressed.metadata().unwrap().len() as usize;
-        self.metrics.uncompressed_bytes = self.repo.uncompressed.metadata().unwrap().len() as usize;
-        self.metrics.process_time = start.elapsed().as_secs_f64();
-        self.metrics.que_size_at_end = self.que.len();
+        self.metrics.log.compressed_bytes = self.repo.compressed.metadata().unwrap().len() as usize;
+        self.metrics.log.uncompressed_bytes =
+            self.repo.uncompressed.metadata().unwrap().len() as usize;
+        self.metrics.log.process_time = start.elapsed().as_secs_f64();
+        self.metrics.log.que_size_at_end = self.que.len();
     }
 
     pub fn show_metrics(&self) {
         info!("{:#?}", self.metrics);
-        info!("{:#?}", self.error_metrics);
     }
 
     fn should_crawl(&self) -> bool {
@@ -73,10 +67,10 @@ impl Crawler {
         self.repo.store(&body);
         let all_urls = parse_urls(&body, &url);
         let all_urls_count = all_urls.len();
-        self.metrics.total_urls += all_urls_count;
+        self.metrics.log.total_urls += all_urls_count;
         let same_domain_urls = self.same_domain_urls(all_urls);
-        self.metrics.other_domains += all_urls_count - same_domain_urls.len();
-        self.metrics.same_domains += same_domain_urls.len();
+        self.metrics.log.other_domains += all_urls_count - same_domain_urls.len();
+        self.metrics.log.same_domains += same_domain_urls.len();
         let new_urls = self.new_urls(same_domain_urls);
         self.uniq_urls.extend(new_urls.clone());
         self.push_new_urls(new_urls);
@@ -101,12 +95,12 @@ impl Crawler {
     async fn fetch_next(&mut self, url: &str) -> Result<String> {
         let timer = Timer::new();
         let resp = self.request.get(url).send().await?;
-        self.metrics.download_time += timer.elapsed();
-        self.metrics.fetch_count += 1;
+        self.metrics.log.download_time += timer.elapsed();
+        self.metrics.log.fetch_count += 1;
         if !is_html(&resp) {
             bail!("Response is not HTML");
         }
-        self.metrics.total_html_files += 1;
+        self.metrics.log.total_html_files += 1;
         let body = resp.text().await?;
         Ok(body)
     }

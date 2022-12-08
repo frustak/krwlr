@@ -2,6 +2,21 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Metrics {
+    pub log: LogMetrics,
+    pub error: ErrorMetrics,
+}
+
+impl Metrics {
+    pub fn new() -> Self {
+        Self {
+            log: LogMetrics::new(),
+            error: ErrorMetrics::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct LogMetrics {
     pub total_urls: usize,
     pub same_domains: usize,
     pub other_domains: usize,
@@ -14,7 +29,7 @@ pub struct Metrics {
     pub que_size_at_end: usize,
 }
 
-impl Metrics {
+impl LogMetrics {
     pub fn new() -> Self {
         Self {
             total_urls: 1,
